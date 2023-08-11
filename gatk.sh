@@ -96,7 +96,19 @@ gatk HaplotypeCaller \
     -I output/mapping/mother.sorted.markdup.BQSR.bam \
     -O output/vcf/mother.sorted.markdup.vcf \
     -L 20:10,000,000-10,200,000
+ 
 
+gatk HaplotypeCaller \
+    -R output/index/ref.fasta \
+    -I output/mapping/mother.sorted.markdup.BQSR.bam \
+    -O output/vcf/mother.sorted.markdup.vcf \
+    -D 2-germline/resources/dbsnp.vcf \
+    -L 20:10,000,000-10,200,000
+ 
+
+
+bcftools  view 2-germline/resources/dbsnp.vcf | less -S
+bcftools  view output/vcf/mother.sorted.markdup.vcf  | less -S
 ########################################################################################
 # 变异检测-多样本模式
 ########################################################################################
@@ -119,3 +131,48 @@ gatk --java-options "-Xmx4g" GenotypeGVCFs \
     -O output/gvcf/output.vcf.gz
  
 bcftools  view output/gvcf/output.vcf.gz | less -S
+
+
+
+vep_install -a cf -s homo_sapiens -y GRCh38 -c db/vep --CONVERT
+
+
+########################################################################################
+# 变异检测-变异的质控
+########################################################################################
+gatk HaplotypeCaller \
+    -R output/index/ref.fasta \
+    -I output/mapping/mother.sorted.markdup.BQSR.bam \
+    -O output/vcf/mother.sorted.markdup.vcf \
+    -D 2-germline/resources/dbsnp.vcf \
+    -L 20:10,000,000-10,200,000
+ 
+# 使用SelectVariants，选出SNP
+gatk SelectVariants \
+    -select-type SNP \
+    -V output/vcf/mother.sorted.markdup.vcf  \
+    -O output/vcf/mother.sorted.markdup.snp.vcf 
+
+gatk VariantFiltration \
+    -V output/vcf/mother.sorted.markdup.snp.vcf  \
+    --filter-expression "QD < 2.0 || MQ < 40.0 || FS > 60.0 || SOR > 3.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0" \
+    --filter-name "Filter" \
+    -O output/vcf/mother.sorted.markdup.snp.filter.vcf 
+
+
+# 使用SelectVariants，选出Indel
+gatk SelectVariants \
+    -select-type INDEL \
+    -V output/vcf/mother.sorted.markdup.vcf \
+    -O output/vcf/mother.sorted.markdup.indel.vcf 
+
+gatk VariantFiltration \
+    -V output/vcf/mother.sorted.markdup.vcf \
+    --filter-expression "QD < 2.0 || FS > 200.0 || SOR > 10.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0" \
+    --filter-name "Filter" \
+    -O ../output/E.coli/E_coli_K12.indel.filter.vcf.gz
+
+
+
+
+
